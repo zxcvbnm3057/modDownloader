@@ -152,6 +152,15 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="modDownloader.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="icon1.ico" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="packages\vcpkg.D.ProgramFilesx86.vcpkg.1.0.0\build\native\vcpkg.D.ProgramFilesx86.vcpkg.targets" Condition="Exists('packages\vcpkg.D.ProgramFilesx86.vcpkg.1.0.0\build\native\vcpkg.D.ProgramFilesx86.vcpkg.targets')" />
