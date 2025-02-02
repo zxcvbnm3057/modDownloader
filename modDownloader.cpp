@@ -1,4 +1,4 @@
-﻿#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "Rpcrt4.lib")
 
@@ -6,9 +6,11 @@
 #include <git2.h>
 #include <string>
 #include <map>
-#include <boost/filesystem.hpp>
+#include <filesystem>
+#include "ftxui/component/component.hpp"
+#include "ftxui/component/screen_interactive.hpp"
 
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 
 /*
 	初始化
@@ -24,7 +26,7 @@ namespace fs = boost::filesystem;
 */
 
 int check_local_status(git_repository* repo, const char* branch);
-bool list_remote_branches(std::map<int, std::string>* variant_list);
+bool list_remote_branches(std::vector<std::string>* variant_list);
 void switch_branch(git_repository* repo, std::string branch_name);
 void uninstall();
 
@@ -36,15 +38,17 @@ enum INSTALL_STATUS
 	OK = 3,
 };
 
-enum ACTION_CODE {
-	SWITCH = 'a',
-	UPDATE = 'b',
-	UNINSTALL = 'c'
-};
+const static char* SWITCH = "切换变体";
+const static char* UPDATE = "更新";
+const static char* UNINSTALL = "卸载";
 
 int main()
 {
 	git_libgit2_init();
+	auto screen = ftxui::ScreenInteractive::TerminalOutput();
+	ftxui::MenuOption option;
+
+	std::cout << "详细说明请查看 https://docs.qq.com/doc/DYmpYTXFGU3ROQWJH" << std::endl;
 	git_repository* repo = nullptr;
 	int repo_open_error;
 
@@ -58,41 +62,50 @@ int main()
 
 	const char* branch = NULL;
 	int status = check_local_status(repo, branch);
-	printf("可用变体：\n");
-	std::map<int, std::string> variant_list = std::map<int, std::string>();
-	bool remote_status = list_remote_branches(&variant_list);
 
-	char action_code;
+	int action_code;
 	printf("请选择操作：\n");
-	std::cout << static_cast<char>(SWITCH) << ": 切换变体" << "\t";
+
+	std::vector<std::string> action_list = {
+	 SWITCH,
+	};
+
 	if (status == OUTDATE)
-		std::cout << static_cast<char>(UPDATE) << ": 更新" << "\t";
+		action_list.push_back(UPDATE);
 	if (status != UNKNOWN)
-		std::cout << static_cast<char>(UNINSTALL) << ": 卸载" << "\t";
-	std::cout << "\n";
-	std::cin >> &action_code;
-	switch (action_code)
-	{
-	case SWITCH:
-		printf("输入目标变体编号：\n");
-		char variant;
-		std::cin >> variant;
-		if (variant >= '0' && variant <= '9')
-			switch_branch(repo, variant_list.at(variant - '0' + 1));
-		break;
-	case UPDATE:
+		action_list.push_back(UNINSTALL);
+
+	option.on_enter = screen.ExitLoopClosure();
+	auto menu = ftxui::Menu(&action_list, &action_code, option);
+	screen.TrackMouse(false);
+	screen.Loop(menu);
+	const char* action = action_list.at(action_code).c_str();
+
+	if (strcmp(action, SWITCH) == 0) {
+		printf("请选择变体：\n");
+		std::cout << "可用变体：" << std::endl;
+		auto screen = ftxui::ScreenInteractive::TerminalOutput();
+		int selected = 0;
+		std::vector<std::string> variant_list = std::vector<std::string>();
+		bool remote_status = list_remote_branches(&variant_list);
+
+		option.on_enter = screen.ExitLoopClosure();
+		auto menu = ftxui::Menu(&variant_list, &selected, option);
+		screen.TrackMouse(false);
+		screen.FitComponent();
+		screen.Loop(menu);
+		switch_branch(repo, variant_list.at(selected));
+	}
+	else if (strcmp(action, UPDATE) == 0) {
 		switch_branch(repo, std::string(branch));
-		break;
-	case UNINSTALL:
+	}
+	else if (strcmp(action, UNINSTALL) == 0) {
 		switch_branch(repo, "bare");
-		break;
-	default:
-		break;
 	}
 
 	git_repository_free(repo);
 	git_libgit2_shutdown();
-	if (action_code == UNINSTALL)
+	if (strcmp(action, UPDATE) == 0)
 		uninstall();
 }
 
@@ -145,7 +158,7 @@ static int check_local_status(git_repository* repo, const char* branch)
 	}
 }
 
-static bool list_remote_branches(std::map<int, std::string>* variant_list)
+static bool list_remote_branches(std::vector<std::string>* variant_list)
 {
 	git_remote* remote = nullptr;
 	int error = git_remote_create_detached(&remote, "https://gitee.com/feng-ying/w3.git");
@@ -160,8 +173,8 @@ static bool list_remote_branches(std::map<int, std::string>* variant_list)
 	for (size_t i = 0, j = 0; i < remote_head_count; i++) {
 		char* name = remote_head[i]->name;
 		if (strncmp(name, "refs/heads/", 11) == 0) {
-			printf("\t%zu: %s\n", j++, name + 11);
-			variant_list->emplace(j, name + 11);
+			//printf("\t%zu: %s\n", j++, name + 11);
+			variant_list->push_back(name + 11);
 		}
 	}
 	git_remote_free(remote);
