@@ -82,7 +82,7 @@ int main()
 		if (repo_open_error) {
 			git_repository_init_options init_options = GIT_REPOSITORY_INIT_OPTIONS_INIT;
 			init_options.origin_url = GIT_REPOSITORY_ADDRESS;
-			git_repository_init_ext(&repo, (path / ".git").string().c_str(), &init_options);
+			git_repository_init_ext(&repo, path.string().c_str(), &init_options);
 		}
 
 		const char* branch = NULL;
@@ -130,7 +130,7 @@ int main()
 
 		git_repository_free(repo);
 		git_libgit2_shutdown();
-		if (strcmp(action, UPDATE) == 0)
+		if (strcmp(action, UNINSTALL) == 0)
 			uninstall();
 	}
 	system("pause");
@@ -246,15 +246,15 @@ static void switch_branch(git_repository* repo, std::string branch_name) {
 }
 
 static void uninstall() {
-	fs::path git_dir = path / "./.git";
-	fs::path gitignore = path / "./.gitignore";
+	fs::path git_dir = path / ".git";
+	fs::path gitignore = path / ".gitignore";
 
 	try {
 		if (fs::exists(git_dir)) {
 			fs::remove_all(git_dir);
 		}
 		if (fs::exists(gitignore)) {
-			fs::remove_all(git_dir);
+			fs::remove_all(gitignore);
 		}
 		std::cout << "已完成卸载，但仍建议在游玩前使用steam检测一次游戏完整性。" << std::endl;
 	}
