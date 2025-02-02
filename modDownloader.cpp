@@ -10,9 +10,19 @@
 #include "ftxui/component/component.hpp"
 #include "ftxui/component/screen_interactive.hpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif // _WIN32
+
+
+#define HELP_PAGE "https://docs.qq.com/doc/DYmpYTXFGU3ROQWJH"
+#define GIT_REPOSITORY_ADDRESS "https://gitee.com/feng-ying/w3.git"
+
 namespace fs = std::filesystem;
+fs::path path = fs::current_path();
 
 /*
+	检查工作目录
 	初始化
 	检查库
 		检查当前分支名
@@ -24,11 +34,6 @@ namespace fs = std::filesystem;
 		更新
 	执行操作
 */
-
-int check_local_status(git_repository* repo, const char* branch);
-bool list_remote_branches(std::vector<std::string>* variant_list);
-void switch_branch(git_repository* repo, std::string branch_name);
-void uninstall();
 
 enum INSTALL_STATUS
 {
@@ -42,71 +47,93 @@ const static char* SWITCH = "切换变体";
 const static char* UPDATE = "更新";
 const static char* UNINSTALL = "卸载";
 
+int check_local_status(git_repository* repo, const char* branch);
+bool list_remote_branches(std::vector<std::string>* variant_list);
+void switch_branch(git_repository* repo, std::string branch_name);
+void uninstall();
+
+
+static bool check_working_dir()
+{
+	if (!fs::exists(path / "bin/x64/witcher3.exe"))
+	{
+#ifdef _WIN32
+		SetConsoleOutputCP(CP_UTF8);
+#endif // _WIN32
+		std::cout << "请将本程序置于巫师3游戏根目录，示例：C:/Steam/steamapps/common/The Witcher 3" << std::endl;
+		return false;
+	}
+	return true;
+}
+
 int main()
 {
-	git_libgit2_init();
-	auto screen = ftxui::ScreenInteractive::TerminalOutput();
-	ftxui::MenuOption option;
-
-	std::cout << "详细说明请查看 https://docs.qq.com/doc/DYmpYTXFGU3ROQWJH" << std::endl;
-	git_repository* repo = nullptr;
-	int repo_open_error;
-
-	repo_open_error = git_repository_open_ext(&repo, "./", GIT_REPOSITORY_OPEN_NO_SEARCH, NULL);
-
-	if (repo_open_error) {
-		git_repository_init_options init_options = GIT_REPOSITORY_INIT_OPTIONS_INIT;
-		init_options.origin_url = "https://gitee.com/feng-ying/w3.git";
-		git_repository_init_ext(&repo, "./.git", &init_options);
-	}
-
-	const char* branch = NULL;
-	int status = check_local_status(repo, branch);
-
-	int action_code;
-	printf("请选择操作：\n");
-
-	std::vector<std::string> action_list = {
-	 SWITCH,
-	};
-
-	if (status == OUTDATE)
-		action_list.push_back(UPDATE);
-	if (status != UNKNOWN)
-		action_list.push_back(UNINSTALL);
-
-	option.on_enter = screen.ExitLoopClosure();
-	auto menu = ftxui::Menu(&action_list, &action_code, option);
-	screen.TrackMouse(false);
-	screen.Loop(menu);
-	const char* action = action_list.at(action_code).c_str();
-
-	if (strcmp(action, SWITCH) == 0) {
-		printf("请选择变体：\n");
-		std::cout << "可用变体：" << std::endl;
+	if (check_working_dir()) {
+		git_libgit2_init();
 		auto screen = ftxui::ScreenInteractive::TerminalOutput();
-		int selected = 0;
-		std::vector<std::string> variant_list = std::vector<std::string>();
-		bool remote_status = list_remote_branches(&variant_list);
+		ftxui::MenuOption option;
+
+		std::cout << "详细说明请查看 " << HELP_PAGE << std::endl;
+		git_repository* repo = nullptr;
+		int repo_open_error;
+
+		repo_open_error = git_repository_open_ext(&repo, path.string().c_str(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL);
+
+		if (repo_open_error) {
+			git_repository_init_options init_options = GIT_REPOSITORY_INIT_OPTIONS_INIT;
+			init_options.origin_url = GIT_REPOSITORY_ADDRESS;
+			git_repository_init_ext(&repo, (path / ".git").string().c_str(), &init_options);
+		}
+
+		const char* branch = NULL;
+		int status = check_local_status(repo, branch);
+
+		int action_code;
+		printf("请选择操作：\n");
+
+		std::vector<std::string> action_list = {
+		 SWITCH,
+		};
+
+		if (status == OUTDATE)
+			action_list.push_back(UPDATE);
+		if (status != UNKNOWN)
+			action_list.push_back(UNINSTALL);
 
 		option.on_enter = screen.ExitLoopClosure();
-		auto menu = ftxui::Menu(&variant_list, &selected, option);
+		auto menu = ftxui::Menu(&action_list, &action_code, option);
 		screen.TrackMouse(false);
-		screen.FitComponent();
 		screen.Loop(menu);
-		switch_branch(repo, variant_list.at(selected));
-	}
-	else if (strcmp(action, UPDATE) == 0) {
-		switch_branch(repo, std::string(branch));
-	}
-	else if (strcmp(action, UNINSTALL) == 0) {
-		switch_branch(repo, "bare");
-	}
+		const char* action = action_list.at(action_code).c_str();
 
-	git_repository_free(repo);
-	git_libgit2_shutdown();
-	if (strcmp(action, UPDATE) == 0)
-		uninstall();
+		if (strcmp(action, SWITCH) == 0) {
+			printf("请选择变体：\n");
+			std::cout << "可用变体：" << std::endl;
+			auto screen = ftxui::ScreenInteractive::TerminalOutput();
+			int selected = 0;
+			std::vector<std::string> variant_list = std::vector<std::string>();
+			bool remote_status = list_remote_branches(&variant_list);
+
+			option.on_enter = screen.ExitLoopClosure();
+			auto menu = ftxui::Menu(&variant_list, &selected, option);
+			screen.TrackMouse(false);
+			screen.FitComponent();
+			screen.Loop(menu);
+			switch_branch(repo, variant_list.at(selected));
+		}
+		else if (strcmp(action, UPDATE) == 0) {
+			switch_branch(repo, std::string(branch));
+		}
+		else if (strcmp(action, UNINSTALL) == 0) {
+			switch_branch(repo, "bare");
+		}
+
+		git_repository_free(repo);
+		git_libgit2_shutdown();
+		if (strcmp(action, UPDATE) == 0)
+			uninstall();
+	}
+	system("pause");
 }
 
 static int check_local_status(git_repository* repo, const char* branch)
@@ -219,8 +246,8 @@ static void switch_branch(git_repository* repo, std::string branch_name) {
 }
 
 static void uninstall() {
-	fs::path git_dir = "./.git";
-	fs::path gitignore = "./.gitignore";
+	fs::path git_dir = path / "./.git";
+	fs::path gitignore = path / "./.gitignore";
 
 	try {
 		if (fs::exists(git_dir)) {
